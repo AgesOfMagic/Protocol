@@ -85,6 +85,9 @@ PacketTypes identify(unsigned char id, int is_from_sever){
     if(id == HAND_SHAKE_SERVER_ID){
       return HAND_SHAKE_SERVER_TYPE;
     }
+    else if (UPDATE_POSITION_ID){
+        return UPDATE_POSITION_TYPE;
+    }
   }else {
     if(id == HAND_SHAKE_CLIENT_ID){
       return HAND_SHAKE_CLIENT_TYPE;
