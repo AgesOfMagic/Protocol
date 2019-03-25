@@ -3,6 +3,8 @@
 #include <string.h>
 
 #define PACKET_SIZE 512
+#define HEADER_SIZE 128
+
 
 /*
   to add Packet:
@@ -19,6 +21,7 @@
 //Server ids
 #define HAND_SHAKE_SERVER_ID 0x00
 #define UPDATE_POSITION_ID 0x01
+#define UPDATE_FILE_HEADER_ID 0x02
 
 //enums
 typedef enum PacketTypes {
@@ -27,6 +30,7 @@ typedef enum PacketTypes {
   HAND_SHAKE_SERVER_TYPE,
   MOVEMENT_PACKET_TYPE,
   UPDATE_POSITION_TYPE,
+  UPDATE_FILE_HEADER_TYPE,
 } PacketTypes;
 
 typedef enum Status {
@@ -60,17 +64,26 @@ typedef struct MovementPacket {
 typedef struct HandShakeServer {
   Status status;
   unsigned char serverVersion[16];
-  unsigned char characterData[492];
+  unsigned char serverName[128];
 } HandShakeServer;
 
 typedef struct UpdatePosition {
-  int x;
-  int y;
-  unsigned int id;
+  long x;
+  long y;
+  unsigned long id;
 } UpdatePosition;
 
+typedef struct UpdateFileHeader
+{
+  unsigned long length;
+  unsigned char name[72];
+} UpdateFileHeader;
 
 //utils
+unsigned short calculateBigPacket(unsigned long long length){
+  return (unsigned short)(length / PACKET_SIZE);
+}
+
 unsigned char* cutStr(unsigned  char str[], int offset, int length){
   static unsigned char r[PACKET_SIZE] = {0};
   for (int i = 0; i < length; i++) {
@@ -85,8 +98,11 @@ PacketTypes identify(unsigned char id, int is_from_sever){
     if(id == HAND_SHAKE_SERVER_ID){
       return HAND_SHAKE_SERVER_TYPE;
     }
-    else if (UPDATE_POSITION_ID){
+    else if (id == UPDATE_POSITION_ID){
         return UPDATE_POSITION_TYPE;
+    }
+    else if (id == UPDATE_FILE_HEADER_ID){
+        return UPDATE_FILE_HEADER_TYPE;
     }
   }else {
     if(id == HAND_SHAKE_CLIENT_ID){
@@ -148,9 +164,9 @@ unsigned char* handShakeServerToBuffer(HandShakeServer serverPacket)
     buff[i + 5] = serverPacket.serverVersion[i];
   }
 
-  for (int i = 0; i < 492; i++)
+  for (int i = 0; i < 128; i++)
   {
-    buff[i + 5 + 16] = serverPacket.characterData[i];
+    buff[i + 5 + 16] = serverPacket.serverName[i];
   }
   // buff[128 + 16 + 32] = '\0';
   unsigned char* t = buff;
@@ -165,7 +181,7 @@ HandShakeServer bufferToHandShakeServer(unsigned char buff[])
     | (Status)buff[2] << 16 | (Status)buff[1] << 24;
   server.status = s;
   strcpy(server.serverVersion, cutStr(buff,5,16));
-  strcpy(server.characterData, cutStr(buff,5 + 16, 492));
+  strcpy(server.serverName, cutStr(buff,5 + 16, 128));
   return server;
 }
 
@@ -197,6 +213,33 @@ MovementPacket bufferToMovement(unsigned char buff[])
   return packet;
 }
 
+// UpdateFiles Funcs
+unsigned char* updateFileHeaderToBuffer(UpdateFileHeader updateFileHeader)
+{
+  static unsigned char buffer[HEADER_SIZE] = {0};
+  buffer[0] = UPDATE_FILE_HEADER_ID;
+  buffer[1] = (updateFileHeader.length >> 24) & 0xFF;
+  buffer[2] = (updateFileHeader.length >> 16) & 0xFF;
+  buffer[3] = (updateFileHeader.length >> 8) & 0xFF;
+  buffer[4] = updateFileHeader.length  & 0xFF;
+  for (int i = 0; i < 72; i++)
+  {
+    buffer[i + 5] = updateFileHeader.name[i];
+  }
+
+  unsigned char* t = buffer;
+  return t;
+}
+
+UpdateFileHeader bufferToupdateFileHeader(unsigned char buff[])
+{
+  UpdateFileHeader packet = {0, 0, 0};
+  unsigned long l = (unsigned long)buff[4] | (unsigned long)buff[3] << 8
+    | (unsigned long)buff[2] << 16 | (unsigned long)buff[1] << 24;
+  packet.length = l;
+  strcpy(packet.name, cutStr(buff,5,72));
+  return packet;
+}
 // UpdatePos Funcs
 unsigned char* updatePositionToBuffer(UpdatePosition updatePosition)
 {
