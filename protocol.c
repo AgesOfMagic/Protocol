@@ -17,11 +17,13 @@
 //Client ids
 #define HAND_SHAKE_CLIENT_ID 0x00
 #define MOVEMENT_PACKET_ID 0x01
+#define BUILD_PACKET_ID 0x02
 
 //Server ids
 #define HAND_SHAKE_SERVER_ID 0x00
 #define UPDATE_POSITION_ID 0x01
 #define UPDATE_FILE_HEADER_ID 0x02
+#define UPDATE_WORLD_ID 0x03
 
 //enums
 typedef enum PacketTypes {
@@ -31,6 +33,8 @@ typedef enum PacketTypes {
   MOVEMENT_PACKET_TYPE,
   UPDATE_POSITION_TYPE,
   UPDATE_FILE_HEADER_TYPE,
+  BUILD_PACKET_TYPE,
+  UPDATE_WORLD_TYPE,
 } PacketTypes;
 
 typedef enum Status {
@@ -59,6 +63,13 @@ typedef struct MovementPacket {
   unsigned char characterSecret[32];
 } MovementPacket;
 
+typedef struct BuildPacket {
+  unsigned short buildId;
+  long x;
+  long y;
+} BuildPacket;
+
+
 
 //Server structs
 typedef struct HandShakeServer {
@@ -72,6 +83,12 @@ typedef struct UpdatePosition {
   long y;
   unsigned long id;
 } UpdatePosition;
+
+typedef struct UpdateWorld {
+  unsigned long blockID;
+  long x;
+  long y;
+} UpdateWorld;
 
 typedef struct UpdateFileHeader
 {
@@ -99,10 +116,12 @@ PacketTypes identify(unsigned char id, int is_from_sever){
       return HAND_SHAKE_SERVER_TYPE;
     }
     else if (id == UPDATE_POSITION_ID){
-        return UPDATE_POSITION_TYPE;
+      return UPDATE_POSITION_TYPE;
     }
     else if (id == UPDATE_FILE_HEADER_ID){
-        return UPDATE_FILE_HEADER_TYPE;
+      return UPDATE_FILE_HEADER_TYPE;
+    }else if (id == UPDATE_WORLD_ID){
+      return  UPDATE_WORLD_TYPE;
     }
   }else {
     if(id == HAND_SHAKE_CLIENT_ID){
@@ -110,6 +129,8 @@ PacketTypes identify(unsigned char id, int is_from_sever){
     }
     else if(id == MOVEMENT_PACKET_ID){
       return MOVEMENT_PACKET_TYPE;
+    } else if(id == BUILD_PACKET_ID){
+      return  BUILD_PACKET_TYPE;
     }
   }
   return UNKNOWN;
@@ -231,7 +252,7 @@ unsigned char* updateFileHeaderToBuffer(UpdateFileHeader updateFileHeader)
   return t;
 }
 
-UpdateFileHeader bufferToupdateFileHeader(unsigned char buff[])
+UpdateFileHeader bufferToUpdateFileHeader(unsigned char buff[])
 {
   UpdateFileHeader packet = {0, 0, 0};
   unsigned long l = (unsigned long)buff[4] | (unsigned long)buff[3] << 8
@@ -240,6 +261,7 @@ UpdateFileHeader bufferToupdateFileHeader(unsigned char buff[])
   strcpy(packet.name, cutStr(buff,5,72));
   return packet;
 }
+
 // UpdatePos Funcs
 unsigned char* updatePositionToBuffer(UpdatePosition updatePosition)
 {
@@ -275,5 +297,78 @@ UpdatePosition bufferToUpdatePosition(unsigned char buff[])
   int t = buff[12] | (int)buff[11] << 8
     | (int)buff[10] << 16 | (int)buff[9] << 24;
   packet.id = t;
+  return packet;
+}
+
+//build
+unsigned char* buildPacketToBuffer(BuildPacket buildPacket)
+{
+  static unsigned char buffer[PACKET_SIZE] = {0};
+  buffer[0] = UPDATE_POSITION_ID;
+  buffer[1] = (buildPacket.x >> 24) & 0xFF;
+  buffer[2] = (buildPacket.x >> 16) & 0xFF;
+  buffer[3] = (buildPacket.x >> 8) & 0xFF;
+  buffer[4] = buildPacket.x & 0xFF;
+
+  buffer[5] = (buildPacket.y >> 24) & 0xFF;
+  buffer[6] = (buildPacket.y >> 16) & 0xFF;
+  buffer[7] = (buildPacket.y >> 8) & 0xFF;
+  buffer[8] = buildPacket.y & 0xFF;
+
+  buffer[9] = (buildPacket.buildId >> 8) & 0xFF;
+  buffer[10] = buildPacket.buildId & 0xFF;
+  unsigned char* t = buffer;
+  return t;
+}
+
+BuildPacket bufferToBuildPacket(unsigned char buff[])
+{
+  BuildPacket packet = {0, 0, 0};
+  int d = buff[4] | (int)buff[3] << 8
+    | (int)buff[2] << 16 | (int)buff[1] << 24;
+  packet.x = d;
+  int b = buff[8] | (int)buff[7] << 8
+    | (int)buff[6] << 16 | (int)buff[5] << 24;
+  packet.y = b;
+  unsigned short t = buff[10] | (unsigned short)buff[9] << 8;
+  packet.buildId = t;
+  return packet;
+}
+
+//update World
+unsigned char* updateWorldToBuffer(UpdateWorld updateWorld)
+{
+  static unsigned char buffer[PACKET_SIZE] = {0};
+  buffer[0] = UPDATE_POSITION_ID;
+  buffer[1] = (updateWorld.x >> 24) & 0xFF;
+  buffer[2] = (updateWorld.x >> 16) & 0xFF;
+  buffer[3] = (updateWorld.x >> 8) & 0xFF;
+  buffer[4] = updateWorld.x & 0xFF;
+
+  buffer[5] = (updateWorld.y >> 24) & 0xFF;
+  buffer[6] = (updateWorld.y >> 16) & 0xFF;
+  buffer[7] = (updateWorld.y >> 8) & 0xFF;
+  buffer[8] = updateWorld.y & 0xFF;
+
+  buffer[9] = (updateWorld.blockID >> 24) & 0xFF;
+  buffer[10] = (updateWorld.blockID >> 16) & 0xFF;
+  buffer[11] = (updateWorld.blockID >> 8) & 0xFF;
+  buffer[12] = updateWorld.blockID & 0xFF;
+  unsigned char* t = buffer;
+  return t;
+}
+
+UpdateWorld bufferToUpdateWorld(unsigned char buff[])
+{
+  UpdateWorld packet = {0, 0, 0};
+  int d = buff[4] | (int)buff[3] << 8
+    | (int)buff[2] << 16 | (int)buff[1] << 24;
+  packet.x = d;
+  int b = buff[8] | (int)buff[7] << 8
+    | (int)buff[6] << 16 | (int)buff[5] << 24;
+  packet.y = b;
+  unsigned long t = buff[12] | (unsigned long)buff[11] << 8
+    | (unsigned long)buff[10] << 16 | (unsigned long)buff[9] << 24;
+  packet.blockID = t;
   return packet;
 }
